@@ -1,0 +1,15 @@
+{
+  "name": "clipa-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.9" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/index.js",
+    "cli": "node --env-file-if-exists=.env src/cli.js",
+    "test": "node test/pipeline.test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

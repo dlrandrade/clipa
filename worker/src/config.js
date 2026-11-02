@@ -1,0 +1,36 @@
+const int = (v, d) => (Number.isFinite(parseInt(v, 10)) ? parseInt(v, 10) : d);
+
+export const cfg = {
+  clipCount: int(process.env.CLIP_COUNT, 10),
+  minSec: int(process.env.CLIP_MIN_SEC, 20),
+  maxSec: int(process.env.CLIP_MAX_SEC, 75),
+
+  // Transcrição: qualquer API compatível com /audio/transcriptions da OpenAI
+  // (OpenAI whisper-1, Groq whisper-large-v3-turbo, etc.)
+  transcribe: {
+    baseUrl: (process.env.TRANSCRIBE_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    apiKey: process.env.TRANSCRIBE_API_KEY || process.env.OPENAI_API_KEY || '',
+    model: process.env.TRANSCRIBE_MODEL || 'whisper-1',
+  },
+
+  // Escolha dos melhores momentos
+  llm: {
+    apiKey: process.env.ANTHROPIC_API_KEY || '',
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
+  },
+
+  supabase: {
+    url: process.env.SUPABASE_URL || '',
+    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  },
+
+  ytdlp: {
+    bin: process.env.YTDLP_BIN || 'yt-dlp',
+    // ex.: "chrome" para usar os cookies do navegador (ajuda com bloqueios do YouTube)
+    cookiesFromBrowser: process.env.YTDLP_COOKIES_FROM_BROWSER || '',
+    cookiesFile: process.env.YTDLP_COOKIES_FILE || '',
+  },
+
+  python: process.env.PYTHON_BIN || 'python3',
+  pollMs: int(process.env.POLL_MS, 4000),
+};
