@@ -31,6 +31,14 @@ npm start
 ```
 
 Deixe esse terminal aberto: enquanto ele roda, os projetos são processados.
+
+**Quer que ligue sozinho (Mac)?** Pare o `npm start` (Ctrl+C) e rode uma vez:
+```bash
+npm run autostart      # liga com o Mac e religa se cair
+npm run logs           # acompanhar o que ele está fazendo
+npm run autostart:off  # desligar o automático
+```
+O Mac precisa estar ligado e sem dormir para processar. Depois de mudar o `.env`, rode `npm run autostart` de novo para reiniciar.
 Para rodar num servidor, há um `Dockerfile` pronto (Railway, Fly.io, Render…).
 
 **YouTube bloqueando?** O YouTube costuma bloquear servidores. Rodar o worker no seu computador (IP residencial) resolve a maioria dos casos; se ainda pedir login, adicione `YTDLP_COOKIES_FROM_BROWSER=chrome` no `.env`.
