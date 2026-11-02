@@ -1,3 +1,4 @@
+import { openAsBlob } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { cfg } from './config.js';
@@ -10,7 +11,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function callApi(file, language) {
   const { baseUrl, apiKey, model } = cfg.transcribe;
   const form = new FormData();
-  form.append('file', await fs.openAsBlob(file), path.basename(file));
+  form.append('file', await openAsBlob(file), path.basename(file));
   form.append('model', model);
   form.append('response_format', 'verbose_json');
   form.append('timestamp_granularities[]', 'word');

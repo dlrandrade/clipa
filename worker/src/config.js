@@ -19,6 +19,15 @@ export const cfg = {
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
   },
 
+  // OpenRouter: alternativa (ou reserva) ao Claude, com rodízio de modelos gratuitos (":free").
+  // OPENROUTER_MODELS é opcional: lista separada por vírgula, na ordem de preferência.
+  // Sem ela, o worker descobre os modelos gratuitos disponíveis na hora.
+  openrouter: {
+    apiKey: process.env.OPENROUTER_API_KEY || '',
+    models: (process.env.OPENROUTER_MODELS || '').split(',').map((s) => s.trim()).filter(Boolean),
+    maxModels: int(process.env.OPENROUTER_MAX_MODELS, 6),
+  },
+
   supabase: {
     url: process.env.SUPABASE_URL || '',
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',

@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env src/index.js",
     "cli": "node --env-file-if-exists=.env src/cli.js",
-    "test": "node test/pipeline.test.js"
+    "test": "node test/api.test.js && node test/pipeline.test.js",
+    "test:quick": "node test/api.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0"

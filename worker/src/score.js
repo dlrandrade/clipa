@@ -155,6 +155,94 @@ async function callClaude(prompt) {
   throw lastErr;
 }
 
+// ---------- OpenRouter (modelos gratuitos em rodízio) ----------
+
+const bad = new Map(); // nome do provedor -> timestamp até quando fica de molho
+let freeCache = { at: 0, models: [] };
+
+const hasLlm = () => !!(cfg.llm.apiKey || cfg.openrouter.apiKey);
+
+/** Lista os modelos ":free" de texto com contexto grande o bastante, maiores primeiro. */
+async function openRouterModels() {
+  if (cfg.openrouter.models.length) return cfg.openrouter.models;
+  if (Date.now() - freeCache.at < 3600_000 && freeCache.models.length) return freeCache.models;
+  const res = await fetch('https://openrouter.ai/api/v1/models', { signal: AbortSignal.timeout(20000) });
+  if (!res.ok) throw new Error(`OpenRouter /models falhou (${res.status})`);
+  const { data } = await res.json();
+  const models = data
+    .filter((m) => m.id.endsWith(':free'))
+    .filter((m) => (m.context_length || 0) >= 64000)
+    .filter((m) => !m.architecture?.output_modalities || m.architecture.output_modalities.includes('text'))
+    .sort((a, b) => b.context_length - a.context_length)
+    .slice(0, cfg.openrouter.maxModels)
+    .map((m) => m.id);
+  if (!models.length) throw new Error('Nenhum modelo gratuito encontrado no OpenRouter agora.');
+  freeCache = { at: Date.now(), models };
+  return models;
+}
+
+async function callOpenRouter(model, prompt) {
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${cfg.openrouter.apiKey}`,
+      'content-type': 'application/json',
+      'X-Title': 'Clipa',
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.3,
+      max_tokens: 4096,
+      messages: [
+        { role: 'system', content: SYSTEM },
+        { role: 'user', content: prompt },
+      ],
+    }),
+    signal: AbortSignal.timeout(180000),
+  });
+  if (!res.ok) {
+    const e = new Error(`OpenRouter ${model} falhou (${res.status}): ${(await res.text()).slice(0, 200)}`);
+    e.status = res.status;
+    throw e;
+  }
+  const j = await res.json();
+  const text = j.choices?.[0]?.message?.content;
+  if (!text) throw new Error(`OpenRouter ${model} voltou vazio`);
+  return text;
+}
+
+async function providers() {
+  const list = [];
+  if (cfg.llm.apiKey) list.push({ name: `claude:${cfg.llm.model}`, call: (p) => callClaude(p) });
+  if (cfg.openrouter.apiKey) {
+    try {
+      for (const m of await openRouterModels()) list.push({ name: `openrouter:${m}`, call: (p) => callOpenRouter(m, p) });
+    } catch (e) {
+      console.warn('[score]', e.message);
+    }
+  }
+  const ready = list.filter((p) => (bad.get(p.name) || 0) < Date.now());
+  return ready.length ? ready : list; // se todos estão de molho, tenta de novo mesmo assim
+}
+
+/** Tenta cada provedor em ordem; se falhar (erro, limite, JSON ruim), passa para o próximo. */
+async function askLlm(prompt, parse) {
+  const errors = [];
+  for (const p of await providers()) {
+    try {
+      const out = parse(await p.call(prompt));
+      console.log(`[score] ok com ${p.name}`);
+      return out;
+    } catch (e) {
+      const cool = e.status === 429 || e.status === 402 ? 120_000 : e.status === 404 || e.status === 400 ? 900_000 : 30_000;
+      bad.set(p.name, Date.now() + cool);
+      errors.push(`${p.name}: ${String(e.message).slice(0, 120)}`);
+      console.warn(`[score] ${p.name} falhou, tentando o próximo…`);
+    }
+  }
+  throw new Error(`Todos os modelos falharam. ${errors.join(' | ')}`);
+}
+
 async function llmCandidates(segments, { want, min, max }) {
   const prompt = `Pick the ${want} best clips from this transcript.
 Each clip must last between ${min} and ${max} seconds. Timestamps in brackets are seconds from the start of the video.
@@ -169,15 +257,20 @@ Return a JSON array of objects with exactly these keys:
 
 TRANSCRIPT:
 ${fmt(segments)}`;
-  const arr = extractJsonArray(await callClaude(prompt));
-  return arr.map((c) => ({
-    start: Number(c.start),
-    end: Number(c.end),
-    score: Number(c.score),
-    title: String(c.title || '').slice(0, 90),
-    hook: String(c.hook || ''),
-    reason: String(c.reason || ''),
-  }));
+  return askLlm(prompt, (text) => {
+    const out = extractJsonArray(text)
+      .map((c) => ({
+        start: Number(c.start),
+        end: Number(c.end),
+        score: Number(c.score),
+        title: String(c.title || '').slice(0, 90),
+        hook: String(c.hook || ''),
+        reason: String(c.reason || ''),
+      }))
+      .filter((c) => Number.isFinite(c.start) && Number.isFinite(c.end) && c.end > c.start && Number.isFinite(c.score));
+    if (!out.length) throw new Error('JSON sem trechos válidos');
+    return out;
+  });
 }
 
 /**
@@ -190,9 +283,10 @@ export async function pickClips(transcript, duration, { count = cfg.clipCount, m
   let cands = [];
   let usedLlm = false;
 
-  if (cfg.llm.apiKey) {
+  if (hasLlm()) {
     try {
-      const wins = makeWindows(segments);
+      // modelos gratuitos têm contexto/limite menores: janelas menores quando não há Claude
+      const wins = makeWindows(segments, { maxChars: cfg.llm.apiKey ? 110000 : 60000 });
       const want = wins.length === 1 ? count + 4 : Math.max(4, Math.ceil((count * 2) / wins.length));
       for (let k = 0; k < wins.length; k++) {
         cands.push(...(await llmCandidates(wins[k], { want, min, max })));

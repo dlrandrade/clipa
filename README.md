@@ -44,11 +44,18 @@ npm run dev                  # http://localhost:3000
 ```
 Para publicar: importe a pasta `web` na Vercel e cadastre as mesmas variáveis do `.env.example`.
 
+## Escolha dos momentos: Claude ou modelos grátis
+- `ANTHROPIC_API_KEY`: melhor qualidade.
+- `OPENROUTER_API_KEY`: modelos gratuitos (`:free`) em rodízio. O worker descobre os disponíveis na hora e passa para o próximo se um falhar, devolver lixo ou estourar o limite. Os limites grátis são baixos (~50 pedidos/dia sem crédito) e os prompts podem ser usados pelos provedores desses modelos.
+- Sem nenhuma das duas: heurística simples (funciona, mas a escolha é mais fraca).
+
 ## Testar sem nenhuma chave
 ```bash
-cd worker && npm test
+cd worker
+npm run test:quick   # integrações com servidores falsos (rápido)
+npm test             # inclui o teste de vídeo completo (leva alguns minutos)
 ```
-Gera um vídeo sintético e valida corte 9:16, legendas, thumbnail e áudio-only.
+O teste completo gera um vídeo sintético e valida corte 9:16, legendas, thumbnail e áudio-only.
 
 Para rodar o pipeline sem banco, num arquivo seu:
 ```bash
