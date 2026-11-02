@@ -27,6 +27,7 @@ async function handle(job) {
   const workdir = await fs.mkdtemp(path.join(os.tmpdir(), 'clipa-'));
   const dlDir = path.join(workdir, 'dl');
   const outDir = path.join(workdir, 'out');
+  const cacheDir = path.join(os.homedir(), '.clipa-cache', job.id);
   await fs.mkdir(dlDir);
   const patch = (p) =>
     sb.from('jobs').update({ ...p, updated_at: new Date().toISOString() }).eq('id', job.id).then(unwrap);
@@ -65,6 +66,7 @@ async function handle(job) {
       count: opts.count || cfg.clipCount,
       language: opts.language || undefined,
       captions: opts.captions !== false,
+      cacheDir, // transcrição guardada: repetir o job não gasta a cota da API de novo
       hooks: {
         onInfo: (info) => patch({ duration_s: info.duration }),
         onStage: (stage, p) => (p === 0 || p === 1 ? stagePatch(stage, p) : undefined),
@@ -110,6 +112,7 @@ async function handle(job) {
     });
 
     await patch({ status: 'done', stage: 'done', progress: 100, finished_at: new Date().toISOString() });
+    await fs.rm(cacheDir, { recursive: true, force: true });
     if (job.source_type === 'upload') await sb.storage.from('uploads').remove([job.storage_path]);
     console.log(`[job ${job.id}] concluído`);
   } catch (e) {

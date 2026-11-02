@@ -50,6 +50,39 @@ assert.equal(t.words[0].w, 'Olá');
 console.log('✓ transcrição: áudio enviado em multipart e resposta lida');
 server.close();
 
+// ---------- 1b) limite 429 com retry-after + cache em disco ----------
+const { retryDelayMs } = await import('../src/transcribe.js');
+assert.equal(retryDelayMs({ headers: new Headers() }, 'Please try again in 5m7.5s.'), 307500);
+assert.equal(retryDelayMs({ headers: new Headers({ 'retry-after': '3' }) }, ''), 3000);
+
+let hits429 = 0;
+const server2 = http.createServer((req, res) => {
+  req.resume();
+  req.on('end', () => {
+    hits429++;
+    res.setHeader('content-type', 'application/json');
+    if (hits429 === 1) {
+      res.statusCode = 429;
+      res.setHeader('retry-after', '1');
+      return res.end('{"error":{"message":"Rate limit reached"}}');
+    }
+    res.end(JSON.stringify({ language: 'pt', segments: [{ start: 0, end: 2, text: 'ok' }], words: [] }));
+  });
+});
+await new Promise((r) => server2.listen(0, '127.0.0.1', r));
+const { cfg } = await import('../src/config.js');
+cfg.transcribe.baseUrl = `http://127.0.0.1:${server2.address().port}/v1`;
+const cacheDir = path.join(tmp, 'cache');
+const t0 = Date.now();
+const t2 = await transcribe(src, tmp, { language: 'pt', cacheDir, log: () => {} });
+assert.equal(hits429, 2, '429 deveria esperar e tentar de novo');
+assert.ok(Date.now() - t0 >= 2500, 'deveria ter esperado o retry-after');
+assert.equal(t2.segments[0].text, 'ok');
+await transcribe(src, tmp, { language: 'pt', cacheDir, log: () => {} });
+assert.equal(hits429, 2, 'segunda execução deveria usar o cache, sem chamar a API');
+console.log('✓ transcrição: espera o limite (429) e reaproveita o cache');
+server2.close();
+
 // ---------- 2) rodízio OpenRouter ----------
 const calls = [];
 const realFetch = globalThis.fetch;

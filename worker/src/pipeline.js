@@ -8,13 +8,19 @@ import { cfg } from './config.js';
  * Pipeline completo: transcreve -> escolhe momentos -> renderiza clips verticais.
  * `hooks` permite acompanhar o progresso (usado pelo worker e pelo CLI).
  */
-export async function processMedia({ mediaPath, workdir, outDir, count = cfg.clipCount, language, transcript: provided, captions = true, hooks = {} }) {
+export async function processMedia({ mediaPath, workdir, outDir, count = cfg.clipCount, language, transcript: provided, captions = true, cacheDir, hooks = {} }) {
   const info = await probe(mediaPath);
   await hooks.onInfo?.(info);
 
   await hooks.onStage?.('transcribe', 0);
   const transcript =
-    provided ?? (await transcribe(mediaPath, workdir, { language, onProgress: (p) => hooks.onStage?.('transcribe', p) }));
+    provided ??
+    (await transcribe(mediaPath, workdir, {
+      language,
+      cacheDir,
+      log: (m) => console.log(`[transcribe] ${m}`),
+      onProgress: (p) => hooks.onStage?.('transcribe', p),
+    }));
   await hooks.onTranscript?.(transcript);
 
   await hooks.onStage?.('pick', 0);
