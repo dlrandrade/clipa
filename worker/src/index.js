@@ -102,7 +102,9 @@ async function handle(job) {
         },
         onClipFailed: async (c, e) => {
           console.error(`[job ${job.id}] clip #${c.rank} falhou:`, e.message);
-          unwrap(await sb.from('clips').update({ status: 'failed' }).eq('id', clipRows.get(c.rank)));
+          // sem coluna de erro no banco: o motivo vai no campo "reason", que aparece em "Por que este trecho"
+          const why = `FALHOU — ${String(e.message).replace(/\s+/g, ' ').slice(-380)}`;
+          unwrap(await sb.from('clips').update({ status: 'failed', reason: why }).eq('id', clipRows.get(c.rank)));
         },
       },
     });

@@ -31,18 +31,27 @@ export async function processMedia({ mediaPath, workdir, outDir, count = cfg.cli
     await hooks.onClipStart?.(c, i, picks.length);
     try {
       const name = `clip_${String(c.rank).padStart(2, '0')}`;
-      const r = await renderClip({
-        video: mediaPath,
-        info,
-        start: c.start,
-        end: c.end,
-        words: transcript.words,
-        outDir,
-        name,
-        captions,
-      });
+      let r;
+      try {
+        r = await renderClip({
+          video: mediaPath,
+          info,
+          start: c.start,
+          end: c.end,
+          words: transcript.words,
+          outDir,
+          name,
+          captions,
+        });
+      } catch (e) {
+        throw new Error(`renderização: ${e.message}`);
+      }
       results.push({ ...c, ...r });
-      await hooks.onClipDone?.(c, r, i, picks.length);
+      try {
+        await hooks.onClipDone?.(c, r, i, picks.length);
+      } catch (e) {
+        throw new Error(`salvar clipe: ${e.message}`);
+      }
     } catch (e) {
       await hooks.onClipFailed?.(c, e, i, picks.length);
     }
