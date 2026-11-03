@@ -41,7 +41,7 @@ export async function renderClip({ video, info, start, end, words, outDir, name,
   const dur = +(end - start).toFixed(3);
   const assName = `${name}.ass`;
   await fs.writeFile(path.join(outDir, assName), buildAss(words, start, end));
-  const sub = captions ? `,ass=${assName}` : '';
+  const sub = captions ? `,ass=filename=${assName}` : '';
   const outFile = `${name}.mp4`;
 
   const enc = [
