@@ -194,8 +194,11 @@ export default function Home() {
               </select>
             </label>
             <label>
-              <input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} />
               Legendas
+              <select value={captions ? 'on' : 'off'} onChange={(e) => setCaptions(e.target.value === 'on')}>
+                <option value="on">Com legendas</option>
+                <option value="off">Sem legendas</option>
+              </select>
             </label>
           </div>
           {error && <p className="err">{error}</p>}
@@ -224,6 +227,7 @@ export default function Home() {
                 {j.duration_s ? <span>{fmtTime(j.duration_s)} de vídeo</span> : null}
                 {j.status === 'done' && <span>{j.clips_ready} clipes</span>}
                 {j.status === 'processing' && <span>{STAGE_LABEL[j.stage ?? ''] ?? '…'}</span>}
+                {(j.status === 'done' || j.status === 'failed') && <span className="redo">Refazer cortes ›</span>}
               </div>
               {(j.status === 'processing' || j.status === 'queued') && (
                 <div className="bar">

@@ -58,7 +58,7 @@ async function handle(job) {
       for (const p of uploadPaths(job)) {
         // arquivos grandes chegam em partes de 45 MB: baixa e junta na ordem
         const { data, error } = await sb.storage.from('uploads').download(p);
-        if (error) throw new Error(`Não consegui ler o upload (${p}): ${error.message}`);
+        if (error) throw new Error(`Não consegui ler o arquivo enviado (${p}): ${error.message}. Se ele foi apagado, envie o vídeo de novo.`);
         await fs.appendFile(mediaPath, Buffer.from(await data.arrayBuffer()));
       }
       title = title || path.basename(job.storage_path).replace(/^[0-9a-f-]{36}_/, '');
@@ -74,8 +74,24 @@ async function handle(job) {
       return patch({ stage, progress: Math.round(a + (b - a) * p) });
     };
 
+    // transcrição guardada na nuvem: refazer cortes (inclusive no GitHub) não transcreve de novo
+    const tKey = `${job.id}/transcript.json`;
+    const tTag = `${cfg.transcribe.model}|${opts.language || 'auto'}`;
+    let saved = null;
+    {
+      const { data } = await sb.storage.from('clips').download(tKey);
+      if (data) {
+        try {
+          const j = JSON.parse(await data.text());
+          if (j.tag === tTag && j.transcript?.segments?.length) saved = j.transcript;
+        } catch {}
+      }
+      if (saved) console.log(`[job ${job.id}] usando transcrição guardada`);
+    }
+
     await processMedia({
       mediaPath,
+      transcript: saved || undefined,
       workdir,
       outDir,
       count: opts.count || cfg.clipCount,
@@ -85,7 +101,14 @@ async function handle(job) {
       hooks: {
         onInfo: (info) => patch({ duration_s: info.duration }),
         onStage: (stage, p) => (p === 0 || p === 1 ? stagePatch(stage, p) : undefined),
-        onTranscript: (t) => patch({ language: t.language }),
+        onTranscript: async (t) => {
+          await patch({ language: t.language });
+          if (!saved) {
+            const body = Buffer.from(JSON.stringify({ tag: tTag, transcript: t }));
+            const { error } = await sb.storage.from('clips').upload(tKey, body, { contentType: 'application/json', upsert: true });
+            if (error) console.warn(`[job ${job.id}] não consegui guardar a transcrição:`, error.message);
+          }
+        },
         onPicks: async (picks) => {
           const rows = picks.map((c) => ({
             job_id: job.id,
@@ -129,7 +152,7 @@ async function handle(job) {
 
     await patch({ status: 'done', stage: 'done', progress: 100, finished_at: new Date().toISOString() });
     if (!failedClips) await fs.rm(cacheDir, { recursive: true, force: true });
-    if (job.source_type === 'upload' && !failedClips) await sb.storage.from('uploads').remove(uploadPaths(job));
+    // o arquivo enviado fica guardado para permitir 'Refazer cortes'; sai quando o projeto é apagado
     console.log(`[job ${job.id}] concluído`);
   } catch (e) {
     console.error(`[job ${job.id}] falhou:`, e.message);

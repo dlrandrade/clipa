@@ -11,6 +11,7 @@ export type Job = {
   error: string | null;
   duration_s: number | null;
   language: string | null;
+  options?: { count?: number; language?: string | null; captions?: boolean; parts?: number } | null;
   created_at: string;
   clips_total?: number;
   clips_ready?: number;

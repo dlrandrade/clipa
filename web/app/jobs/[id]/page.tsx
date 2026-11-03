@@ -33,8 +33,23 @@ export default function JobPage() {
     return () => clearInterval(t);
   }, [running, load]);
 
+  const [redoCaptions, setRedoCaptions] = useState<boolean | null>(null);
+  const [redoCount, setRedoCount] = useState<number | null>(null);
+  const [redoing, setRedoing] = useState(false);
+
   async function retry() {
-    await fetch(`/api/jobs/${id}`, { method: 'POST' });
+    if (redoing) return;
+    setRedoing(true);
+    const options: Record<string, unknown> = {};
+    if (redoCaptions !== null) options.captions = redoCaptions;
+    if (redoCount !== null) options.count = redoCount;
+    const res = await fetch(`/api/jobs/${id}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ options }),
+    });
+    if (!res.ok) setError((await res.json().catch(() => ({}))).error || 'Não foi possível refazer.');
+    setRedoing(false);
     load();
   }
 
@@ -74,6 +89,7 @@ export default function JobPage() {
           </span>
           {job.duration_s ? <span>{fmtTime(job.duration_s)} de vídeo</span> : null}
           {job.language ? <span>idioma: {job.language}</span> : null}
+          {job.options ? <span>{job.options.captions === false ? 'sem legendas' : 'com legendas'}</span> : null}
           <button className="linkbtn" onClick={remove}>Apagar</button>
         </div>
         {running && (
@@ -86,16 +102,39 @@ export default function JobPage() {
       {job.status === 'failed' && (
         <div className="panel error">
           <p style={{ margin: '0 0 12px' }}>{job.error || 'Algo deu errado.'}</p>
-          <button className="btn ghost" onClick={retry}>Tentar de novo</button>
         </div>
       )}
 
-      {job.status === 'done' && clips.some((c) => c.status === 'failed') && (
-        <div className="panel error">
-          <p style={{ margin: '0 0 12px' }}>
-            {clips.filter((c) => c.status === 'failed').length} clipe(s) falharam. Dá para processar de novo (a transcrição fica guardada).
+      {(job.status === 'done' || job.status === 'failed') && (
+        <div className="panel redopanel">
+          <p>
+            {job.status === 'failed'
+              ? 'Ajuste se quiser e tente de novo.'
+              : clips.some((c) => c.status === 'failed')
+                ? `${clips.filter((c) => c.status === 'failed').length} clipe(s) falharam. Refaça para tentar de novo.`
+                : 'Não gostou? Refaça os cortes. A transcrição fica guardada, então é mais rápido.'}
           </p>
-          <button className="btn ghost" onClick={retry}>Tentar de novo</button>
+          <label>
+            Legendas
+            <select
+              value={(redoCaptions ?? job.options?.captions !== false) ? 'on' : 'off'}
+              onChange={(e) => setRedoCaptions(e.target.value === 'on')}
+            >
+              <option value="on">Com legendas</option>
+              <option value="off">Sem legendas</option>
+            </select>
+          </label>
+          <label>
+            Clipes
+            <select value={redoCount ?? job.options?.count ?? 10} onChange={(e) => setRedoCount(+e.target.value)}>
+              {[3, 5, 8, 10, 15].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+          <button className="btn ghost" onClick={retry} disabled={redoing}>
+            {redoing ? 'Enviando…' : job.status === 'failed' ? 'Tentar de novo' : 'Refazer cortes'}
+          </button>
         </div>
       )}
 

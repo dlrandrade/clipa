@@ -104,3 +104,9 @@ details.why p { margin: 6px 0 0; }
   .cover { width: 52px; height: 76px; }
   .hero { padding-top: 44px; }
 }
+
+.redo { color: var(--accent); }
+.redopanel { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.redopanel p { margin: 0; flex: 1 1 100%; color: var(--muted); font-size: 14px; }
+.redopanel label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.redopanel select { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
