@@ -30,7 +30,9 @@ export async function downloadUrl(url, dir) {
     }
     if (/Sign in to confirm|not a bot|HTTP Error 403|Video unavailable/i.test(msg)) {
       throw new Error(
-        'O site bloqueou o download deste link. Rode o worker no seu computador (IP residencial) ou defina YTDLP_COOKIES_FROM_BROWSER=chrome. Detalhe: ' +
+        (process.env.GITHUB_ACTIONS
+          ? 'O YouTube bloqueou o download no servidor. Cadastre o segredo YTDLP_COOKIES no GitHub (conteúdo do cookies.txt) ou rode o worker no seu computador. Detalhe: '
+          : 'O site bloqueou o download deste link. Rode o worker no seu computador (IP residencial) ou defina YTDLP_COOKIES_FROM_BROWSER=chrome. Detalhe: ') +
           msg.slice(-300),
       );
     }

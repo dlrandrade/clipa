@@ -30,12 +30,17 @@ jobs:
         with:
           python-version: '3.12'
 
+      # o yt-dlp precisa de um runtime JavaScript (Deno) para o YouTube
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Instalar FFmpeg, yt-dlp e OpenCV
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
           sudo apt-get install -y -qq fonts-inter > /dev/null 2>&1 || echo "fonte Inter indisponível, usando outra"
-          pip install -q -U yt-dlp opencv-python-headless
+          pip install -q -U "yt-dlp[default]" opencv-python-headless
           ffmpeg -hide_banner -filters | grep -E '\sass\s' || echo "AVISO: FFmpeg sem legendas"
 
       - name: Dependências do worker
