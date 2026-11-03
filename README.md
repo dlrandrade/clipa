@@ -43,6 +43,20 @@ Para rodar num servidor, há um `Dockerfile` pronto (Railway, Fly.io, Render…)
 
 **YouTube bloqueando?** O YouTube costuma bloquear servidores. Rodar o worker no seu computador (IP residencial) resolve a maioria dos casos; se ainda pedir login, adicione `YTDLP_COOKIES_FROM_BROWSER=chrome` no `.env`.
 
+### 2b. Worker na nuvem, grátis (sem depender do Mac)
+O worker também roda nos computadores do GitHub (GitHub Actions). O site avisa o GitHub a cada projeto novo; ele processa a fila e desliga.
+Grátis: 2.000 min/mês em repositório privado (ilimitado se for público).
+
+1. No GitHub: repositório → **Settings → Secrets and variables → Actions → New repository secret**. Crie:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY` (a `sb_secret_…`)
+   - `TRANSCRIBE_API_KEY` (chave do Groq `gsk_…` já configura o Groq sozinha)
+   - opcionais: `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `YTDLP_COOKIES` (conteúdo de um cookies.txt do YouTube)
+2. Crie um token: github.com/settings/personal-access-tokens → **Generate new token** → só o repositório `clipa` → permissão **Contents: Read and write**.
+3. Na Vercel, adicione a variável `CLIPA_GITHUB_TOKEN` com esse token e faça Redeploy.
+
+Limites: o YouTube costuma bloquear servidores (use `YTDLP_COOKIES` ou envie o arquivo); envio de arquivo no Supabase grátis vai até 50 MB. Acompanhe em **Actions** no GitHub.
+
 ### 3. Web
 ```bash
 cd web

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabase';
+import { wakeWorker } from '@/lib/dispatch';
 
 const PRIVATE_HOST = /^(localhost|.*\.local|.*\.internal|0\.0\.0\.0|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|\[?::1\]?)$/i;
 
@@ -83,6 +84,7 @@ export async function POST(req: Request) {
 
     const { data, error } = await db().from('jobs').insert(row).select('id').single();
     if (error) throw new Error(error.message);
+    await wakeWorker();
     return NextResponse.json({ id: data.id }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });

@@ -33,6 +33,11 @@ async function handle(job) {
     sb.from('jobs').update({ ...p, updated_at: new Date().toISOString() }).eq('id', job.id).then(unwrap);
 
   console.log(`[job ${job.id}] começando (${job.source_type})`);
+  // "batimento": mantém updated_at fresco durante esperas longas (ex.: limite da API),
+  // para outro worker não achar que este job travou e pegá-lo de novo
+  const beat = setInterval(() => {
+    sb.from('jobs').update({ updated_at: new Date().toISOString() }).eq('id', job.id).then(() => {}, () => {});
+  }, 60_000);
   try {
     await patch({ stage: 'download', progress: 2 });
 
@@ -121,18 +126,28 @@ async function handle(job) {
     console.error(`[job ${job.id}] falhou:`, e.message);
     await patch({ status: 'failed', error: String(e.message).slice(0, 800), finished_at: new Date().toISOString() }).catch(() => {});
   } finally {
+    clearInterval(beat);
     await fs.rm(workdir, { recursive: true, force: true });
   }
 }
 
-console.log('Clipa worker ligado. Esperando jobs…');
+// --once: processa o que estiver na fila e sai (usado no GitHub Actions)
+const once = process.argv.includes('--once');
+console.log(once ? 'Clipa worker (modo único): processando a fila…' : 'Clipa worker ligado. Esperando jobs…');
 for (;;) {
   try {
     const job = unwrap(await sb.rpc('claim_job'));
     if (job && job.id) await handle(job);
+    else if (once) break;
     else await sleep(cfg.pollMs);
   } catch (e) {
     console.error('Erro no loop:', e.message);
+    if (once) process.exitCode = 1;
+    if (once) break;
     await sleep(cfg.pollMs * 2);
   }
+}
+if (once) {
+  console.log('Fila vazia. Encerrando.');
+  process.exit(process.exitCode ?? 0);
 }

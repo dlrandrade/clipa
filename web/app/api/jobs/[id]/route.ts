@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabase';
+import { wakeWorker } from '@/lib/dispatch';
 
 type Ctx = { params: Promise<{ id: string }> };
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -50,6 +51,7 @@ export async function POST(_req: Request, { params }: Ctx) {
       .eq('id', id)
       .in('status', ['failed', 'done']);
     if (error) throw new Error(error.message);
+    await wakeWorker();
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

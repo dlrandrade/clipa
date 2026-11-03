@@ -1,0 +1,64 @@
+# Worker na nuvem: roda de graça nos computadores do GitHub.
+# O site (Vercel) dispara este fluxo sempre que um projeto é criado ou reenviado.
+name: Clipa worker
+
+on:
+  repository_dispatch:
+    types: [clipa-job]
+  workflow_dispatch: {} # botão "Run workflow" para rodar na mão
+
+# Um por vez: cada execução esvazia a fila inteira. Pedidos que chegarem durante
+# uma execução ficam esperando e rodam logo depois.
+concurrency:
+  group: clipa-worker
+  cancel-in-progress: false
+
+jobs:
+  work:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar FFmpeg, yt-dlp e OpenCV
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
+          sudo apt-get install -y -qq fonts-inter > /dev/null 2>&1 || echo "fonte Inter indisponível, usando outra"
+          pip install -q -U yt-dlp opencv-python-headless
+          ffmpeg -hide_banner -filters | grep -E '\sass\s' || echo "AVISO: FFmpeg sem legendas"
+
+      - name: Dependências do worker
+        working-directory: worker
+        run: npm ci --no-audit --no-fund
+
+      - name: Cookies do YouTube (opcional)
+        env:
+          YTDLP_COOKIES: ${{ secrets.YTDLP_COOKIES }}
+        run: |
+          if [ -n "$YTDLP_COOKIES" ]; then
+            printf '%s\n' "$YTDLP_COOKIES" > "$RUNNER_TEMP/cookies.txt"
+            echo "YTDLP_COOKIES_FILE=$RUNNER_TEMP/cookies.txt" >> "$GITHUB_ENV"
+          fi
+
+      - name: Processar a fila
+        working-directory: worker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TRANSCRIBE_API_KEY: ${{ secrets.TRANSCRIBE_API_KEY }}
+          TRANSCRIBE_BASE_URL: ${{ secrets.TRANSCRIBE_BASE_URL }}
+          TRANSCRIBE_MODEL: ${{ secrets.TRANSCRIBE_MODEL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: node src/index.js --once
