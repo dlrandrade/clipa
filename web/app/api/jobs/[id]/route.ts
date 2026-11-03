@@ -37,7 +37,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   }
 }
 
-// Reenfileira um job que falhou
+// Reenfileira um job que falhou (ou que terminou com clipes que falharam)
 export async function POST(_req: Request, { params }: Ctx) {
   try {
     const { id } = await params;
@@ -48,7 +48,7 @@ export async function POST(_req: Request, { params }: Ctx) {
       .from('jobs')
       .update({ status: 'queued', stage: null, progress: 0, error: null, finished_at: null, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .eq('status', 'failed');
+      .in('status', ['failed', 'done']);
     if (error) throw new Error(error.message);
     return NextResponse.json({ ok: true });
   } catch (e) {

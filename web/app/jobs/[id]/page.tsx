@@ -90,6 +90,15 @@ export default function JobPage() {
         </div>
       )}
 
+      {job.status === 'done' && clips.some((c) => c.status === 'failed') && (
+        <div className="panel error">
+          <p style={{ margin: '0 0 12px' }}>
+            {clips.filter((c) => c.status === 'failed').length} clipe(s) falharam. Dá para processar de novo (a transcrição fica guardada).
+          </p>
+          <button className="btn ghost" onClick={retry}>Tentar de novo</button>
+        </div>
+      )}
+
       {job.status === 'queued' && (
         <div className="panel">
           <p style={{ margin: 0, color: 'var(--muted)' }}>

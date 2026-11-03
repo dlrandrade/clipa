@@ -53,6 +53,7 @@ async function handle(job) {
 
     const opts = job.options || {};
     const clipRows = new Map(); // rank -> clip id
+    let failedClips = 0;
     const span = { transcribe: [10, 45], pick: [45, 55] };
     const stagePatch = (stage, p) => {
       const [a, b] = span[stage] || [0, 0];
@@ -103,6 +104,7 @@ async function handle(job) {
           await patch({ progress: 55 + Math.round(((i + 1) / n) * 44) });
         },
         onClipFailed: async (c, e) => {
+          failedClips++;
           console.error(`[job ${job.id}] clip #${c.rank} falhou:`, e.message);
           // sem coluna de erro no banco: o motivo vai no campo "reason", que aparece em "Por que este trecho"
           const why = `FALHOU — ${String(e.message).replace(/\s+/g, ' ').slice(-380)}`;
@@ -112,8 +114,8 @@ async function handle(job) {
     });
 
     await patch({ status: 'done', stage: 'done', progress: 100, finished_at: new Date().toISOString() });
-    await fs.rm(cacheDir, { recursive: true, force: true });
-    if (job.source_type === 'upload') await sb.storage.from('uploads').remove([job.storage_path]);
+    if (!failedClips) await fs.rm(cacheDir, { recursive: true, force: true });
+    if (job.source_type === 'upload' && !failedClips) await sb.storage.from('uploads').remove([job.storage_path]);
     console.log(`[job ${job.id}] concluído`);
   } catch (e) {
     console.error(`[job ${job.id}] falhou:`, e.message);
