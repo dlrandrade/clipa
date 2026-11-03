@@ -66,10 +66,18 @@ npm run dev                  # http://localhost:3000
 ```
 Para publicar: importe a pasta `web` na Vercel e cadastre as mesmas variáveis do `.env.example`.
 
-## Escolha dos momentos: Claude ou modelos grátis
-- `ANTHROPIC_API_KEY`: melhor qualidade.
-- `OPENROUTER_API_KEY`: modelos gratuitos (`:free`) em rodízio. O worker descobre os disponíveis na hora e passa para o próximo se um falhar, devolver lixo ou estourar o limite. Os limites grátis são baixos (~50 pedidos/dia sem crédito) e os prompts podem ser usados pelos provedores desses modelos.
-- Sem nenhuma das duas: heurística simples (funciona, mas a escolha é mais fraca).
+## Escolha dos momentos (camada de IA)
+O vídeo é dividido em **frases** (não nos pedaços do Whisper, que cortam no meio). A IA trabalha em duas passadas:
+1. **Escolha**: aponta a frase inicial e a final de cada trecho, exigindo um pensamento completo (começo, meio e fim).
+2. **Revisão**: vê cada rascunho com as frases de antes e depois, ajusta início/fim e descarta o que não se sustenta sozinho.
+
+Por isso pode vir menos clipes do que o pedido: é melhor do que entregar corte sem sentido.
+
+Provedores (use pelo menos um; se houver vários, o primeiro que responder vale):
+- `ANTHROPIC_API_KEY` (Claude): melhor qualidade, pago.
+- `GEMINI_API_KEY` (Google, aistudio.google.com/apikey): **cota gratuita** e lê o vídeo todo de uma vez. No plano grátis o Google pode usar os dados para melhorar produtos.
+- `OPENROUTER_API_KEY`: modelos gratuitos (`:free`) em rodízio; limites baixos (~50 pedidos/dia sem crédito).
+- Sem nenhuma: heurística simples (respeita frases, mas não entende o assunto).
 
 ## Testar sem nenhuma chave
 ```bash

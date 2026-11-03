@@ -101,7 +101,7 @@ globalThis.fetch = async (url, opts) => {
             content:
               'Aqui vai:\n```json\n' +
               JSON.stringify([
-                { start: 10, end: 45, title: 'Ótimo trecho', hook: 'Ninguém te conta', score: 91, reason: 'gancho forte' },
+                { first: 2, last: 8, title: 'Ótimo trecho', hook: 'Ninguém te conta', score: 91, reason: 'gancho forte' },
               ]) +
               '\n```',
           },
@@ -116,10 +116,57 @@ const { pickClips } = await import('../src/score.js');
 const segments = [];
 for (let i = 0; i < 20; i++) segments.push({ start: i * 5, end: i * 5 + 5, text: `Frase número ${i} sobre dinheiro e erro?` });
 const clips = await pickClips({ segments }, 100, { count: 2 });
-assert.deepEqual(calls, ['m/one:free', 'm/two:free', 'm/three:free'], 'deveria girar 429 -> lixo -> ok');
+assert.deepEqual(calls.slice(0, 3), ['m/one:free', 'm/two:free', 'm/three:free'], 'deveria girar 429 -> lixo -> ok');
+assert.ok(calls.length >= 4, 'deveria fazer a 2ª passada (revisão)');
 assert.ok(clips.length >= 1);
 assert.equal(clips[0].title, 'Ótimo trecho', 'o candidato do modelo deve vencer a heurística');
-console.log(`✓ OpenRouter: rodízio ${calls.join(' → ')} e escolha do trecho`);
+assert.ok(Math.abs(clips[0].start - 10) < 0.5 && Math.abs(clips[0].end - 45) < 0.5, 'início/fim vêm das frases #2 a #8');
+console.log(`✓ OpenRouter: rodízio ${calls.join(' → ')} e escolha do trecho por frases`);
+
+// ---------- 3) frases e revisão ----------
+const { buildSentences, heuristicCandidates } = await import('../src/score.js');
+const sents = buildSentences({
+  segments: [
+    { start: 0, end: 4, text: 'Primeiro ponto: o que é receita' },
+    { start: 4, end: 8, text: 'eficiente? É simples. Então, aí' },
+    { start: 8, end: 12, text: 'vem o resto.' },
+  ],
+  words: [],
+});
+assert.deepEqual(sents.map((x) => x.text), ['Primeiro ponto: o que é receita eficiente?', 'É simples.', 'Então, aí vem o resto.']);
+assert.equal(sents[0].start, 0);
+assert.ok(sents[0].end > 4 && sents[0].end < 8, 'frase que atravessa segmentos termina no meio do 2º');
+const hc = heuristicCandidates(
+  [
+    { id: 0, start: 0, end: 20, text: 'Então isso aqui é importante.' },
+    { id: 1, start: 20, end: 40, text: 'Qual é o maior erro de quem anuncia?' },
+    { id: 2, start: 40, end: 60, text: 'Gastar sem medir nada.' },
+  ],
+  { min: 20, max: 75 },
+);
+assert.ok(hc.length && hc.every((c) => c.start !== 0), 'heurística não abre clipe com "Então isso…"');
+console.log('✓ frases: junta segmentos quebrados; heurística evita começo dependente');
+
+// revisão: ajusta o 1º rascunho e descarta o 2º
+globalThis.fetch = async (url, opts) => {
+  if (!String(url).includes('chat/completions')) return realFetch(url, opts);
+  const prompt = JSON.parse(opts.body).messages[1].content;
+  const answer = prompt.startsWith('Review these draft clips')
+    ? [
+        { draft: 1, first: 1, last: 9, keep: true, score: 88, title: 'Revisado', hook: 'h', reason: 'pensamento completo' },
+        { draft: 2, first: 12, last: 18, keep: false, score: 10, title: 'x', hook: 'x', reason: 'depende de contexto' },
+      ]
+    : [
+        { first: 2, last: 8, title: 'A', hook: 'a', score: 80, reason: 'r' },
+        { first: 12, last: 18, title: 'B', hook: 'b', score: 70, reason: 'r' },
+      ];
+  return Response.json({ choices: [{ message: { content: JSON.stringify(answer) } }] });
+};
+const reviewed = await pickClips({ segments }, 100, { count: 3 });
+assert.equal(reviewed.length, 1, 'o rascunho reprovado na revisão sai');
+assert.equal(reviewed[0].title, 'Revisado');
+assert.ok(Math.abs(reviewed[0].start - 5) < 0.5 && Math.abs(reviewed[0].end - 50) < 0.5, 'revisão ajusta início/fim');
+console.log('✓ revisão: ajusta início/fim e descarta trecho sem sentido sozinho');
 
 globalThis.fetch = realFetch;
 await fs.rm(tmp, { recursive: true, force: true });

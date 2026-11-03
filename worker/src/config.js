@@ -23,6 +23,12 @@ export const cfg = {
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
   },
 
+  // Gemini (aistudio.google.com/apikey): cota gratuita, contexto grande. GEMINI_MODEL é opcional.
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || '',
+    model: process.env.GEMINI_MODEL || '',
+  },
+
   // OpenRouter: alternativa (ou reserva) ao Claude, com rodízio de modelos gratuitos (":free").
   // OPENROUTER_MODELS é opcional: lista separada por vírgula, na ordem de preferência.
   // Sem ela, o worker descobre os modelos gratuitos disponíveis na hora.

@@ -65,5 +65,6 @@ jobs:
           TRANSCRIBE_BASE_URL: ${{ secrets.TRANSCRIBE_BASE_URL }}
           TRANSCRIBE_MODEL: ${{ secrets.TRANSCRIBE_MODEL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: node src/index.js --once
