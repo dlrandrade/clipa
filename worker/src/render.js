@@ -32,6 +32,26 @@ function buildFilter({ framing, info, sub }) {
   );
 }
 
+let assOk;
+/** Alguns FFmpeg (ex.: versões "essenciais"/estáticas) vêm sem o filtro de legendas (libass). */
+async function hasAss() {
+  if (assOk === undefined) {
+    try {
+      const { stdout } = await run('ffmpeg', ['-hide_banner', '-filters']);
+      assOk = /\sass\s/.test(stdout);
+    } catch {
+      assOk = true;
+    }
+    if (!assOk) {
+      console.warn(
+        '[render] AVISO: seu FFmpeg não tem o filtro de legendas (libass). Os clipes serão gerados SEM legendas. ' +
+          'Para ter legendas: brew uninstall ffmpeg; brew install ffmpeg',
+      );
+    }
+  }
+  return assOk;
+}
+
 /**
  * Corta [start,end] do arquivo, reenquadra para 9:16, queima legendas e gera thumbnail.
  * Retorna { file, thumb, mode }
@@ -41,6 +61,7 @@ export async function renderClip({ video, info, start, end, words, outDir, name,
   const dur = +(end - start).toFixed(3);
   const assName = `${name}.ass`;
   await fs.writeFile(path.join(outDir, assName), buildAss(words, start, end));
+  captions = captions && (await hasAss());
   const sub = captions ? `,ass=filename=${assName}` : '';
   const outFile = `${name}.mp4`;
 
