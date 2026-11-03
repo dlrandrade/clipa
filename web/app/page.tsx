@@ -21,6 +21,7 @@ export default function Home() {
   const [language, setLanguage] = useState('');
   const [captions, setCaptions] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
   const [error, setError] = useState('');
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -47,25 +48,44 @@ export default function Home() {
     e.preventDefault();
     if (busy) return;
     setBusy(true);
+    setUploadMsg('');
     setError('');
     try {
       const options = { count, language: language || null, captions };
       let body: Record<string, unknown>;
 
       if (file) {
+        const PART = 45 * 1024 * 1024; // abaixo do limite de 50 MB do Supabase grátis
+        const parts = file.size > PART ? Math.ceil(file.size / PART) : 0;
         const up = await fetch('/api/upload-url', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ filename: file.name }),
+          body: JSON.stringify({ filename: file.name, parts }),
         });
         const u = await up.json();
         if (!up.ok) throw new Error(u.error || 'Falha ao preparar o envio.');
         const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
           auth: { persistSession: false },
         });
-        const { error: upErr } = await sb.storage.from('uploads').uploadToSignedUrl(u.path, u.token, file);
-        if (upErr) throw new Error(`Envio falhou: ${upErr.message}`);
-        body = { storage_path: u.path, title: file.name, options };
+        const store = sb.storage.from('uploads');
+        if (!parts) {
+          setUploadMsg('Enviando…');
+          const { error: upErr } = await store.uploadToSignedUrl(u.path, u.token, file);
+          if (upErr) throw new Error(`Envio falhou: ${upErr.message}`);
+        } else {
+          for (let i = 0; i < parts; i++) {
+            setUploadMsg(`Enviando ${Math.round((i / parts) * 100)}%`);
+            const blob = file.slice(i * PART, Math.min(file.size, (i + 1) * PART), file.type);
+            const p = `${u.path}.part${String(i).padStart(3, '0')}`;
+            let upErr: Error | null = null;
+            for (let tries = 0; tries < 3; tries++) {
+              ({ error: upErr } = await store.uploadToSignedUrl(p, u.tokens[i], blob, { contentType: 'application/octet-stream' }));
+              if (!upErr) break;
+            }
+            if (upErr) throw new Error(`Envio falhou na parte ${i + 1} de ${parts}: ${upErr.message}`);
+          }
+        }
+        body = { storage_path: u.path, parts, title: file.name, options };
       } else {
         if (!url.trim()) throw new Error('Cole um link ou escolha um arquivo.');
         body = { url: url.trim(), options };
@@ -123,7 +143,7 @@ export default function Home() {
               inputMode="url"
             />
             <button className="btn" disabled={busy}>
-              {busy ? 'Enviando…' : 'Gerar clipes'}
+              {busy ? uploadMsg || 'Enviando…' : 'Gerar clipes'}
             </button>
           </div>
           <div className="opts">

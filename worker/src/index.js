@@ -23,6 +23,12 @@ async function upload(bucket, storagePath, file, contentType) {
   unwrap(await sb.storage.from(bucket).upload(storagePath, body, { contentType, upsert: true }));
 }
 
+function uploadPaths(job) {
+  const n = parseInt(job.options?.parts, 10) || 0;
+  if (!n) return [job.storage_path];
+  return Array.from({ length: n }, (_, i) => `${job.storage_path}.part${String(i).padStart(3, '0')}`);
+}
+
 async function handle(job) {
   const workdir = await fs.mkdtemp(path.join(os.tmpdir(), 'clipa-'));
   const dlDir = path.join(workdir, 'dl');
@@ -48,10 +54,13 @@ async function handle(job) {
       mediaPath = r.file;
       title = r.title || title;
     } else {
-      const { data, error } = await sb.storage.from('uploads').download(job.storage_path);
-      if (error) throw new Error(`Não consegui ler o upload: ${error.message}`);
       mediaPath = path.join(dlDir, path.basename(job.storage_path));
-      await fs.writeFile(mediaPath, Buffer.from(await data.arrayBuffer()));
+      for (const p of uploadPaths(job)) {
+        // arquivos grandes chegam em partes de 45 MB: baixa e junta na ordem
+        const { data, error } = await sb.storage.from('uploads').download(p);
+        if (error) throw new Error(`Não consegui ler o upload (${p}): ${error.message}`);
+        await fs.appendFile(mediaPath, Buffer.from(await data.arrayBuffer()));
+      }
       title = title || path.basename(job.storage_path).replace(/^[0-9a-f-]{36}_/, '');
     }
     await patch({ title, stage: 'transcribe', progress: 10 });
@@ -120,7 +129,7 @@ async function handle(job) {
 
     await patch({ status: 'done', stage: 'done', progress: 100, finished_at: new Date().toISOString() });
     if (!failedClips) await fs.rm(cacheDir, { recursive: true, force: true });
-    if (job.source_type === 'upload' && !failedClips) await sb.storage.from('uploads').remove([job.storage_path]);
+    if (job.source_type === 'upload' && !failedClips) await sb.storage.from('uploads').remove(uploadPaths(job));
     console.log(`[job ${job.id}] concluído`);
   } catch (e) {
     console.error(`[job ${job.id}] falhou:`, e.message);

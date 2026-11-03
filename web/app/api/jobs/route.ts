@@ -75,7 +75,7 @@ export async function POST(req: Request) {
         source_type: 'upload',
         storage_path: p,
         title: typeof body.title === 'string' ? body.title.slice(0, 200) : null,
-        options,
+        options: { ...options, parts: Math.min(200, Math.max(0, parseInt(body.parts, 10) || 0)) },
       };
     } else {
       const url = cleanUrl(body.url);
